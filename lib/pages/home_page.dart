@@ -1,7 +1,10 @@
+import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 import 'package:todo_app/models/task.dart';
 import 'package:todo_app/pages/add_task_page.dart';
 import 'package:todo_app/services/task_storage_service.dart';
+import 'package:todo_app/widgets/task_card.dart';
+import 'package:todo_app/services/notification_service.dart';
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key, required this.title});
@@ -25,13 +28,12 @@ class _MyHomePageState extends State<MyHomePage> {
   List<Task> tasks = [];
 
   @override
-  void initState() {
+  void initState(){
     super.initState();
     loadTasks();
   }
 
   void _addTask() async {
-
     final result = await Navigator.push<Task>(
       context,
       MaterialPageRoute(builder: (context) => const AddTaskPage()),
@@ -153,76 +155,28 @@ class _MyHomePageState extends State<MyHomePage> {
               child: child,
             );
           },
-          child: Padding(
-            key: ValueKey(
-                task.title + task.description + task.isArchived.toString()),
-            padding:
-                const EdgeInsets.symmetric(horizontal: 12.0, vertical: 6.0),
-            child: Card(
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16)),
-              child: ListTile(
-                leading: Checkbox(
-                  value: task.isDone,
-                  onChanged: showArchived
-                      ? null
-                      : (_) {
-                          setState(() {
-                            task.isDone = !task.isDone;
-                            saveTasks();
-                          });
-                        },
-                ),
-                title: Text(
-                  task.title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    decoration: task.isDone ? TextDecoration.lineThrough : null,
-                  ),
-                ),
-                // subtitle: Text(
-                //   task.description,
-                //   maxLines: 2,
-                //   overflow: TextOverflow.ellipsis,
-                // ),
-                trailing: PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert),
-                  onSelected: (value) {
-                    setState(() {
-                      if (value == 'archive') {
-                        task.isArchived = true;
-                      } else if (value == 'unarchive') {
-                        task.isArchived = false;
-                      } else if (value == 'delete') {
-                        tasks.remove(task);
-                      }
-                      saveTasks();
-                    });
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'view',
-                      enabled: true,
-                      child: Text('View'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'edit',
-                      enabled: true,
-                      child: Text('Edit'),
-                    ),
-                    if (!showArchived)
-                      const PopupMenuItem(
-                          value: 'archive', child: Text('Archive')),
-                    if (showArchived)
-                      const PopupMenuItem(
-                          value: 'unarchive', child: Text('Unarchive')),
-                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                  ],
-                ),
-              ),
+          child: TaskCard(
+              task: task,
+              isArchivedView: showArchived,
+              onToggleDone: () {
+                setState(() {
+                  task.isDone = !task.isDone;
+                  saveTasks();
+                });
+              },
+              onAction: (value) {
+                setState(() {
+                  if (value == 'archive') {
+                    task.isArchived = true;
+                  } else if (value == 'unarchive') {
+                    task.isArchived = false;
+                  } else if (value == 'delete') {
+                    tasks.remove(task);
+                  }
+                  saveTasks();
+                });
+              },
             ),
-          ),
         );
       },
     );

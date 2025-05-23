@@ -1,0 +1,107 @@
+import 'dart:ui';
+
+import 'package:awesome_notifications/awesome_notifications.dart';
+import 'package:flutter/material.dart';
+
+class NotificationService {
+  /// Inicializa o plugin e canal de notificações
+  static Future<void> init() async {
+    await AwesomeNotifications().initialize(
+      null,
+      [
+        NotificationChannel(
+          channelKey: 'task_channel',
+          channelName: 'Task Notifications',
+          channelDescription: 'Notificações agendadas para tarefas',
+          defaultColor: const Color(0xFF00A86B),
+          ledColor: const Color(0xFFFFFFFF),
+          importance: NotificationImportance.High,
+          channelShowBadge: true,
+        )
+      ],
+      debug: true,
+    );
+
+    await requestPermission();
+  }
+
+  /// Verifica se tem permissão para notificação, e solicita se necessário
+  static Future<void> requestPermission() async {
+    try {
+      bool isAllowed = await AwesomeNotifications().isNotificationAllowed();
+      if (!isAllowed) {
+        await AwesomeNotifications().requestPermissionToSendNotifications();
+      }
+    } catch (e) {
+      // Se der erro, pode ser que o usuário tenha negado a permissão
+      // ou o app não tenha permissão para enviar notificações
+      AlertDialog(
+        title: const Text('Permissão de Notificação'),
+        content: const Text(
+          'Para receber lembretes, você precisa permitir notificações.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              // Aqui você pode abrir as configurações do app
+              // para o usuário habilitar as notificações
+            },
+            child: const Text('Abrir Configurações'),
+          ),
+        ],
+      );
+    }
+  }
+
+  /// Agenda 3 notificações antes da data da tarefa
+  static Future<void> scheduleTaskNotifications({
+    required int idBase,
+    required String title,
+    required DateTime date,
+  }) async {
+    final times = [
+      date.subtract(const Duration(hours: 1)),
+      date.subtract(const Duration(minutes: 30)),
+      date.subtract(const Duration(minutes: 10)),
+    ];
+
+    final messages = [
+      'Faltam 1 hora para sua tarefa "$title"',
+      'Faltam 30 minutos para sua tarefa "$title"',
+      'Faltam 10 minutos para sua tarefa "$title"',
+    ];
+
+    final timeZone =
+        await AwesomeNotifications().getLocalTimeZoneIdentifier();
+
+    for (int i = 0; i < times.length; i++) {
+      if (times[i].isAfter(DateTime.now())) {
+        await AwesomeNotifications().createNotification(
+          content: NotificationContent(
+            id: idBase + i,
+            channelKey: 'task_channel',
+            title: 'Lembrete de tarefa',
+            body: messages[i],
+            notificationLayout: NotificationLayout.Default,
+          ),
+          schedule: NotificationCalendar(
+            year: times[i].year,
+            month: times[i].month,
+            day: times[i].day,
+            hour: times[i].hour,
+            minute: times[i].minute,
+            second: 0,
+            millisecond: 0,
+            preciseAlarm: true,
+            timeZone: timeZone,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Cancela todas as notificações agendadas (caso queira resetar)
+  static Future<void> cancelAll() async {
+    await AwesomeNotifications().cancelAll();
+  }
+}

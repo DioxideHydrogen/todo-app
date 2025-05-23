@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
+import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'dart:convert';
 
 class TaskCard extends StatelessWidget {
   final Task task;
@@ -35,22 +37,81 @@ class TaskCard extends StatelessWidget {
               decoration: task.isDone ? TextDecoration.lineThrough : null,
             ),
           ),
-          subtitle: Text(
-            task.description,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert),
-            onSelected: onAction,
-            itemBuilder: (context) => [
-              if (!isArchivedView)
-                const PopupMenuItem(value: 'archive', child: Text('Archive')),
-              if (isArchivedView)
-                const PopupMenuItem(value: 'unarchive', child: Text('Unarchive')),
-              const PopupMenuItem(value: 'delete', child: Text('Delete')),
+          subtitle: task.dueDate != null
+              ? Text(
+                  'Due: ${task.dueDate!.day}/${task.dueDate!.month}/${task.dueDate!.year} at ${task.dueDate!.hour}:${task.dueDate!.minute.toString().padLeft(2, '0')}',
+                  style: const TextStyle(fontSize: 12),
+                )
+              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.visibility_outlined),
+                tooltip: 'View description',
+                onPressed: () {
+                  try {
+                    final doc = quill.Document.fromJson(jsonDecode(task.description));
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: Text(task.title),
+                        content: SizedBox(
+                          height: 300,
+                          child: quill.QuillEditor.basic(
+                            configurations: quill.QuillEditorConfigurations(
+                              controller: quill.QuillController(
+                                document: doc,
+                                selection: const TextSelection.collapsed(offset: 0),
+                              ),
+                              scrollable: true,
+                              padding: const EdgeInsets.all(8),
+                              enableInteractiveSelection: false,
+                              showCursor: false,
+                              enableSelectionToolbar: false,
+                            ),
+                          ),
+
+                        ),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    );
+                  } catch (e) {
+                    // Caso a descrição não seja JSON válido
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: Text(task.title),
+                        content: Text(task.description),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('Close'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                },
+              ),
+              PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert),
+                onSelected: onAction,
+                itemBuilder: (context) => [
+                  if (!isArchivedView)
+                    const PopupMenuItem(value: 'archive', child: Text('Archive')),
+                  if (isArchivedView)
+                    const PopupMenuItem(value: 'unarchive', child: Text('Unarchive')),
+                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                ],
+              ),
             ],
-          ),
+          )
         ),
       ),
     );

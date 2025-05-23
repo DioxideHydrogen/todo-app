@@ -3,12 +3,14 @@ class Task {
   String description;
   bool isDone;
   bool isArchived;
+  DateTime? dueDate;
 
   Task({
     required this.title,
     required this.description,
     this.isDone = false,
     this.isArchived = false,
+    this.dueDate,
   });
 
   Map<String, dynamic> toJson() {
@@ -17,6 +19,7 @@ class Task {
       'description': description,
       'isDone': isDone,
       'isArchived': isArchived,
+      'dueDate': dueDate?.toIso8601String(),
     };
   }
 
@@ -26,6 +29,8 @@ class Task {
       description: json['description'],
       isDone: json['isDone'],
       isArchived: json['isArchived'],
+      dueDate: json['dueDate'] != null ? DateTime.tryParse(json['dueDate']) : null,
+
     );
   }
 }

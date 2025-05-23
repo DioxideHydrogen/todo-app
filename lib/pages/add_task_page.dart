@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
 import 'package:todo_app/models/task.dart';
+import 'package:todo_app/services/notification_service.dart';
 import 'dart:convert';
 
 import 'package:todo_app/services/task_storage_service.dart';
@@ -16,11 +17,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   final QuillController _controller = QuillController.basic();
-  
+  DateTime? _dueDate;
 
-  void _saveTask() {
+  void _saveTask() async {
     final String title = _titleController.text.trim();
-    final String description = jsonEncode(_controller.document.toDelta().toJson());
+    final String description =
+        jsonEncode(_controller.document.toDelta().toJson());
 
     if (title.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -34,12 +36,38 @@ class _AddTaskPageState extends State<AddTaskPage> {
       description: description,
       isDone: false,
       isArchived: false,
+      dueDate: _dueDate,
     );
 
     TaskStorageService.addTask(task);
-    Navigator.pop(context, task); // retorna a tarefa salva
-  }
 
+    if (_dueDate != null) {
+      try {
+        await NotificationService.scheduleTaskNotifications(
+          idBase: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          title: title,
+          date: _dueDate!,
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Erro ao agendar notificação. Permissão pode estar bloqueada.',
+            ),
+            action: SnackBarAction(
+              label: 'Abrir Configurações',
+              onPressed: () {
+                // Abrir configurações de notificações do app
+                NotificationService.requestPermission();
+              },
+            ),
+          ),
+        );
+      }
+    }
+
+    Navigator.pop(context, task);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -57,47 +85,50 @@ class _AddTaskPageState extends State<AddTaskPage> {
             tooltip: 'Save',
             onPressed: _saveTask,
           ),
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            tooltip: 'More',
-            onPressed: () {
-              // Show floating action menu  
-              showModalBottomSheet(
-                context: context,
-                builder: (context) {
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      ListTile(
-                        leading: const Icon(Icons.save_alt),
-                        title: const Text('Draft'),
-                        onTap: () {
-                          // Salvar como rascunho (draft)
-                          // Exemplo: TaskStorageService.saveDraft(...)
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Salvo como rascunho')),
-                          );
-                        },
-                      ),
-                      ListTile(
-                        leading: const Icon(Icons.delete_outline),
-                        title: const Text('Discard'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          Navigator.pop(context); // Sai da tela de adicionar task
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Descartado')),
-                          );
-                        },
-                      ),
-                    ],
-                  );
-                },
-              );
-              
-            },
-          ),
+          false
+              ? IconButton(
+                  icon: const Icon(Icons.more_vert),
+                  tooltip: 'More',
+                  onPressed: () {
+                    // Show floating action menu
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (context) {
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              leading: const Icon(Icons.save_alt),
+                              title: const Text('Draft'),
+                              onTap: () {
+                                // Salvar como rascunho (draft)
+                                // Exemplo: TaskStorageService.saveDraft(...)
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                      content: Text('Salvo como rascunho')),
+                                );
+                              },
+                            ),
+                            ListTile(
+                              leading: const Icon(Icons.delete_outline),
+                              title: const Text('Discard'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.pop(
+                                    context); // Sai da tela de adicionar task
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Descartado')),
+                                );
+                              },
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                )
+              : Container(),
         ],
       ),
       body: Padding(
@@ -126,53 +157,52 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   firstDate: DateTime(2000),
                   lastDate: DateTime(2101),
                 );
+
                 if (pickedDate != null) {
-                  setState(() {
-                    _dateController.text = "${pickedDate.toLocal()}".split(' ')[0];
-                  });
+                  final TimeOfDay? pickedTime = await showTimePicker(
+                    context: context,
+                    initialTime: TimeOfDay.now(),
+                  );
+
+                  if (pickedTime != null) {
+                    final fullDateTime = DateTime(
+                      pickedDate.year,
+                      pickedDate.month,
+                      pickedDate.day,
+                      pickedTime.hour,
+                      pickedTime.minute,
+                    );
+
+                    if (fullDateTime.isBefore(DateTime.now())) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text('A data e hora devem ser futuras.')),
+                      );
+                      return;
+                    }
+
+                    setState(() {
+                      _dueDate = fullDateTime;
+                      _dateController.text =
+                          "${_dueDate!.day.toString().padLeft(2, '0')}/"
+                          "${_dueDate!.month.toString().padLeft(2, '0')}/"
+                          "${_dueDate!.year} às "
+                          "${_dueDate!.hour.toString().padLeft(2, '0')}:"
+                          "${_dueDate!.minute.toString().padLeft(2, '0')}";
+                    });
+                  }
                 }
               },
             ),
+            QuillToolbar.simple(
+              configurations: QuillSimpleToolbarConfigurations(controller: _controller),
+            ),
             const SizedBox(height: 16),
-           QuillToolbar.simple(
-              configurations: QuillSimpleToolbarConfigurations(
-                controller: _controller,
-                sharedConfigurations: const QuillSharedConfigurations(
-                  locale: Locale('pt', 'BR'),
-                ),
-                showUndo: false,
-                showRedo: false,
-                showSearchButton: false,
-                showClipboardCopy: false,
-                showClipboardCut: false,
-
+           Expanded(
+              child: QuillEditor.basic(
+                configurations: QuillEditorConfigurations(controller: _controller),
               ),
-            ),
-            const SizedBox(height: 8),
-            Expanded(
-              child: Container(
-                padding: const EdgeInsets.all(8.0),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: QuillEditor.basic(
-                configurations: QuillEditorConfigurations(
-                  controller: _controller,
-                  sharedConfigurations: const QuillSharedConfigurations(
-                    locale: Locale('pt', 'BR'),
-                  ),
-                ),
-              ),
-                // QuillEditor(
-                //   controller: _controller,
-                //   readOnly: false,
-                //   autoFocus: true,
-                //   expands: true,
-                //   padding: EdgeInsets.zero,
-                // ),
-              ),
-            ),
+            )
           ],
         ),
       ),
