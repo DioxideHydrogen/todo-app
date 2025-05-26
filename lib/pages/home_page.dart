@@ -1,13 +1,17 @@
-import 'package:awesome_notifications/awesome_notifications.dart';
+// ignore_for_file: avoid_print
+
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:todo_app/models/task.dart';
 import 'package:todo_app/pages/add_task_page.dart';
+import 'package:todo_app/pages/edit_task_page.dart';
+import 'package:todo_app/services/api_service.dart';
 import 'package:todo_app/services/task_storage_service.dart';
 import 'package:todo_app/widgets/task_card.dart';
-import 'package:todo_app/services/notification_service.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 
 class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+  const MyHomePage({super.key, required this.title, required this.token});
 
   // This widget is the home page of your application. It is stateful, meaning
   // that it has a State object (defined below) that contains fields that affect
@@ -19,18 +23,64 @@ class MyHomePage extends StatefulWidget {
   // always marked "final".
 
   final String title;
+  final String token;
 
   @override
   State<MyHomePage> createState() => _MyHomePageState();
 }
 
 class _MyHomePageState extends State<MyHomePage> {
+  
   List<Task> tasks = [];
+  List<Task> deletedTasks = [];
+
+  String token = '';
+  bool isLoading = true;
 
   @override
-  void initState(){
+  void initState() {
     super.initState();
-    loadTasks();
+    token = widget.token;
+    if (token.isNotEmpty) print('Token passado com sucesso para o widget: $token');
+    _loadTasksFromApi();
+    _loadDeletedTasksFromApi();
+  }
+
+  Future<List<Task>> _loadTasksFromApi() async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+
+      final loadedTasks = await loadTasks();
+      tasks = loadedTasks;
+      setState(() {
+        tasks = loadedTasks;
+        isLoading = false;
+      });
+      return tasks;
+    } catch (e) {
+      print('Erro ao carregar tarefas: $e');
+      setState(() {
+        isLoading = false;
+      });
+      throw Exception('Erro ao carregar tarefas: $e');
+    }
+  }
+
+  Future<List<Task>> _loadDeletedTasksFromApi() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('token');
+      if (token == null) throw Exception('Token não encontrado');
+
+      final response = await TaskStorageService.loadDeletedTasks();
+      deletedTasks = response.map((e) => Task.fromJsonApi(e)).toList();
+      return deletedTasks;
+    } catch (e) {
+      print('Erro ao carregar tarefas deletadas: $e');
+      throw Exception('Erro ao carregar tarefas deletadas: $e');
+    }
   }
 
   void _addTask() async {
@@ -40,56 +90,40 @@ class _MyHomePageState extends State<MyHomePage> {
     );
 
     if (result != null) {
+      print('Tarefa adicionada: ${result.title}');
+      print('Recarregando tarefas após adicionar uma nova tarefa');
+      var realoadedTasks = await _loadTasksFromApi();
+      print('Tarefas recarregadas: ${realoadedTasks.length}');
       setState(() {
-        tasks.add(result);
+        tasks = realoadedTasks;
       });
-      saveTasks(); // salva no storage local
     }
-    /*
-    String title = '';
-    String description = '';
+  }
 
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('New Task'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Add a new task:',
-                  style: TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 12),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Title'),
-                onChanged: (value) => title = value,
-              ),
-              TextField(
-                decoration: const InputDecoration(labelText: 'Description'),
-                onChanged: (value) => description = value,
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                if (title.trim().isNotEmpty) {
-                  setState(() {
-                    tasks.add(Task(
-                        title: title.trim(), description: description.trim()));
-                    saveTasks();
-                  });
-                  Navigator.pop(context); // fecha o popup
-                }
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
-    */
+  Future<void> _restoreDeletedTask(Task task) async {
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      await TaskStorageService.restoreTask(task.id!);
+      await _loadDeletedTasksFromApi();
+      await _loadTasksFromApi();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Tarefa "${task.title}" restaurada com sucesso')),
+      );
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      print('Erro ao restaurar tarefa: $e');
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro ao restaurar tarefa')),
+      );
+
+    }
   }
 
   @override
@@ -101,7 +135,7 @@ class _MyHomePageState extends State<MyHomePage> {
     // fast, so that you can just rebuild anything that needs updating rather
     // than having to individually change instances of widgets.
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
           backgroundColor: Theme.of(context).colorScheme.primaryContainer,
@@ -115,14 +149,23 @@ class _MyHomePageState extends State<MyHomePage> {
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Tasks'),
-              Tab(text: 'Archived'),
+              Tab(text: 'Archiveds'),
+              Tab(text: 'Deleteds'),
             ],
           ),
         ),
-        body: TabBarView(
+        body: isLoading
+        ? Center(
+            child: LoadingAnimationWidget.newtonCradle(
+              color: Theme.of(context).colorScheme.primary,
+              size: 50,
+            ),
+          )
+        : TabBarView(
           children: [
             _buildTaskList(showArchived: false),
             _buildTaskList(showArchived: true),
+            _buildTaskList(showArchived: false, showDeleted: true),
           ],
         ),
         floatingActionButton: FloatingActionButton(
@@ -134,9 +177,15 @@ class _MyHomePageState extends State<MyHomePage> {
     );
   }
 
-  Widget _buildTaskList({required bool showArchived}) {
-    final filteredTasks =
+  Widget _buildTaskList({required bool showArchived, bool showDeleted = false}) {
+    var filteredTasks =
         tasks.where((t) => t.isArchived == showArchived).toList();
+
+    if (showDeleted) {
+      filteredTasks = deletedTasks;
+    } else {
+      filteredTasks.removeWhere((t) => t.isDeleted);
+    }
 
     if (filteredTasks.isEmpty) {
       return const Center(child: Text('No tasks here.'));
@@ -156,35 +205,99 @@ class _MyHomePageState extends State<MyHomePage> {
             );
           },
           child: TaskCard(
-              task: task,
-              isArchivedView: showArchived,
-              onToggleDone: () {
+            task: task,
+            isArchivedView: showArchived,
+            onToggleDone: () async {
+              task.isDone = !task.isDone;
+              if (task.id != null) {
+                task.isDone
+                    ? await ApiService.completeTask(task.id!, token)
+                    : await ApiService.uncompleteTask(task.id!, token);
+              }
+
+              setState(() {
+                task.isDone = task.isDone;
+              });
+            },
+            onAction: (value) async {
+              if (value == 'archive') {
                 setState(() {
-                  task.isDone = !task.isDone;
-                  saveTasks();
+                  isLoading = true;
                 });
-              },
-              onAction: (value) {
+                await ApiService.archiveTask(task.id!, token);
                 setState(() {
-                  if (value == 'archive') {
-                    task.isArchived = true;
-                  } else if (value == 'unarchive') {
-                    task.isArchived = false;
-                  } else if (value == 'delete') {
-                    tasks.remove(task);
-                  }
-                  saveTasks();
+                  isLoading = false;
                 });
-              },
-            ),
+              } else if (value == 'unarchive') {
+                setState(() {
+                  isLoading = true;
+                });
+                await ApiService.unarchiveTask(task.id!, token);
+                setState(() {
+                  isLoading = false;
+                });
+              } else if (value == 'delete') {
+                setState(() {
+                  isLoading = true;
+                });
+                tasks.remove(task);
+                await ApiService.deleteTask(task.id!, token);
+                await _loadDeletedTasksFromApi();
+                setState(() {
+                  isLoading = false;
+                });
+              } else if(value == 'edit') {
+                final result = await Navigator.push<Task>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditTaskPage(task: task),
+                  ),
+                );
+
+                if (result != null) {
+                  setState(() {
+                    isLoading = true;
+                  });
+                  await _loadTasksFromApi();
+                  await _loadDeletedTasksFromApi();
+                  setState(() {
+                    isLoading = false;
+                  });
+                }
+              } else if (value == 'restore') {
+                setState(() {
+                  isLoading = true;
+                });
+                await _restoreDeletedTask(task);
+                setState(() {
+                  isLoading = false;
+                });
+              }
+
+              setState(() {
+                if (value == 'archive') {
+                  task.isArchived = true;
+                } else if (value == 'unarchive') {
+                  task.isArchived = false;
+                } else if (value == 'delete') {
+                  tasks.remove(task);
+                } else if (value == 'restore') {
+                  task.isDeleted = false;
+                }
+              });
+            },
+          ),
         );
       },
     );
   }
 
-  void saveTasks() => TaskStorageService.saveTasks(tasks);
-  Future<void> loadTasks() async {
-    tasks = await TaskStorageService.loadTasks();
-    setState(() {});
+  static Future<List<Task>> loadTasks() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) throw Exception('Token não encontrado');
+
+    final response = await ApiService.getTasks(token);
+    return response.map((e) => Task.fromJsonApi(e)).toList();
   }
 }

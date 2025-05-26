@@ -69,6 +69,7 @@ class TaskCard extends StatelessWidget {
                               enableInteractiveSelection: false,
                               showCursor: false,
                               enableSelectionToolbar: false,
+                              checkBoxReadOnly: true,
                             ),
                           ),
 
@@ -103,11 +104,16 @@ class TaskCard extends StatelessWidget {
                 icon: const Icon(Icons.more_vert),
                 onSelected: onAction,
                 itemBuilder: (context) => [
-                  if (!isArchivedView)
+                  if (task.isDeleted)
+                    const PopupMenuItem(value: 'restore', child: Text('Restore')),
+                  if (!task.isDeleted)
+                    const PopupMenuItem(value: 'edit', child: Text('Edit')),
+                  if (!isArchivedView && !task.isDeleted)
                     const PopupMenuItem(value: 'archive', child: Text('Archive')),
-                  if (isArchivedView)
+                  if (isArchivedView && !task.isDeleted)
                     const PopupMenuItem(value: 'unarchive', child: Text('Unarchive')),
-                  const PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  if (!task.isDeleted)
+                    const PopupMenuItem(value: 'delete', child: Text('Delete')),
                 ],
               ),
             ],

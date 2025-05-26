@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:todo_app/models/task.dart';
 import 'package:todo_app/services/notification_service.dart';
 import 'dart:convert';
@@ -18,6 +19,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final TextEditingController _dateController = TextEditingController();
   final QuillController _controller = QuillController.basic();
   DateTime? _dueDate;
+  bool isLoading = false;
 
   void _saveTask() async {
     final String title = _titleController.text.trim();
@@ -31,6 +33,14 @@ class _AddTaskPageState extends State<AddTaskPage> {
       return;
     }
 
+    if (_controller.document.isEmpty()) {
+      // Verifica se o conteúdo do editor está vazio
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Descrição é obrigatória')),
+      );
+      return;
+    }
+
     final task = Task(
       title: title,
       description: description,
@@ -39,7 +49,23 @@ class _AddTaskPageState extends State<AddTaskPage> {
       dueDate: _dueDate,
     );
 
-    TaskStorageService.addTask(task);
+    try {
+      setState(() {
+        isLoading = true;
+      });
+      await TaskStorageService.addTask(task);
+      setState(() {
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Erro ao salvar a tarefa.')),
+      );
+      return;
+    }
 
     if (_dueDate != null) {
       try {
@@ -66,146 +92,145 @@ class _AddTaskPageState extends State<AddTaskPage> {
       }
     }
 
+    setState(() {
+      isLoading = false;
+    });
+
     Navigator.pop(context, task);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Add Task'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: 'Save',
-            onPressed: _saveTask,
+        appBar: !isLoading ? 
+        AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
           ),
-          false
-              ? IconButton(
-                  icon: const Icon(Icons.more_vert),
-                  tooltip: 'More',
-                  onPressed: () {
-                    // Show floating action menu
-                    showModalBottomSheet(
-                      context: context,
-                      builder: (context) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            ListTile(
-                              leading: const Icon(Icons.save_alt),
-                              title: const Text('Draft'),
-                              onTap: () {
-                                // Salvar como rascunho (draft)
-                                // Exemplo: TaskStorageService.saveDraft(...)
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                      content: Text('Salvo como rascunho')),
-                                );
-                              },
-                            ),
-                            ListTile(
-                              leading: const Icon(Icons.delete_outline),
-                              title: const Text('Discard'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                Navigator.pop(
-                                    context); // Sai da tela de adicionar task
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Descartado')),
-                                );
-                              },
-                            ),
-                          ],
-                        );
-                      },
-                    );
-                  },
-                )
-              : Container(),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
+          title: const Text('Add Task'),
+          centerTitle: true,
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.save),
+              tooltip: 'Save',
+              onPressed: _saveTask,
+            ),
+          ],
+        ):
+        null
+        ,
+        body: Stack(
           children: [
-            TextField(
-              controller: _titleController,
-              decoration: const InputDecoration(
-                labelText: 'Title',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _dateController,
-              decoration: const InputDecoration(
-                labelText: 'Date',
-                border: OutlineInputBorder(),
-              ),
-              readOnly: true,
-              onTap: () async {
-                final DateTime? pickedDate = await showDatePicker(
-                  context: context,
-                  initialDate: DateTime.now(),
-                  firstDate: DateTime(2000),
-                  lastDate: DateTime(2101),
-                );
-
-                if (pickedDate != null) {
-                  final TimeOfDay? pickedTime = await showTimePicker(
-                    context: context,
-                    initialTime: TimeOfDay.now(),
-                  );
-
-                  if (pickedTime != null) {
-                    final fullDateTime = DateTime(
-                      pickedDate.year,
-                      pickedDate.month,
-                      pickedDate.day,
-                      pickedTime.hour,
-                      pickedTime.minute,
-                    );
-
-                    if (fullDateTime.isBefore(DateTime.now())) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                            content: Text('A data e hora devem ser futuras.')),
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _titleController,
+                    decoration: const InputDecoration(
+                      labelText: 'Title',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Date',
+                      border: OutlineInputBorder(),
+                    ),
+                    readOnly: true,
+                    onTap: () async {
+                      final DateTime? pickedDate = await showDatePicker(
+                        context: context,
+                        initialDate: DateTime.now(),
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime(2101),
                       );
-                      return;
-                    }
 
-                    setState(() {
-                      _dueDate = fullDateTime;
-                      _dateController.text =
-                          "${_dueDate!.day.toString().padLeft(2, '0')}/"
-                          "${_dueDate!.month.toString().padLeft(2, '0')}/"
-                          "${_dueDate!.year} às "
-                          "${_dueDate!.hour.toString().padLeft(2, '0')}:"
-                          "${_dueDate!.minute.toString().padLeft(2, '0')}";
-                    });
-                  }
-                }
-              },
+                      if (pickedDate != null) {
+                        final TimeOfDay? pickedTime = await showTimePicker(
+                          context: context,
+                          initialTime: TimeOfDay.now(),
+                        );
+
+                        if (pickedTime != null) {
+                          final fullDateTime = DateTime(
+                            pickedDate.year,
+                            pickedDate.month,
+                            pickedDate.day,
+                            pickedTime.hour,
+                            pickedTime.minute,
+                          );
+
+                          if (fullDateTime.isBefore(DateTime.now())) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content:
+                                      Text('A data e hora devem ser futuras.')),
+                            );
+                            return;
+                          }
+
+                          setState(() {
+                            _dueDate = fullDateTime;
+                            _dateController.text =
+                                "${_dueDate!.day.toString().padLeft(2, '0')}/"
+                                "${_dueDate!.month.toString().padLeft(2, '0')}/"
+                                "${_dueDate!.year} às "
+                                "${_dueDate!.hour.toString().padLeft(2, '0')}:"
+                                "${_dueDate!.minute.toString().padLeft(2, '0')}";
+                          });
+                        }
+                      }
+                    },
+                  ),
+                  QuillToolbar.simple(
+                    configurations: QuillSimpleToolbarConfigurations(
+                      controller: _controller,
+                      sharedConfigurations: const QuillSharedConfigurations(
+                        locale: Locale('pt', 'BR'),
+                      ),
+                      showUndo: false,
+                      showRedo: false,
+                      showSearchButton: false,
+                      showClipboardCopy: false,
+                      showClipboardCut: false,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(8.0),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: QuillEditor.basic(
+                        configurations: QuillEditorConfigurations(
+                          controller: _controller,
+                          sharedConfigurations: const QuillSharedConfigurations(
+                            locale: Locale('pt', 'BR'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                ],
+              ),
             ),
-            QuillToolbar.simple(
-              configurations: QuillSimpleToolbarConfigurations(controller: _controller),
-            ),
-            const SizedBox(height: 16),
-           Expanded(
-              child: QuillEditor.basic(
-                configurations: QuillEditorConfigurations(controller: _controller),
+            if (isLoading)
+            Container(
+              color: Colors.white.withOpacity(0.9),
+              child: Center(
+                child: LoadingAnimationWidget.newtonCradle(
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 50,
+                ),
               ),
             )
           ],
-        ),
-      ),
-    );
+        ));
   }
 }

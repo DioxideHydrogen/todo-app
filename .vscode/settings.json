@@ -1,3 +1,11 @@
 {
-	"cmake.sourceDirectory": "C:/wamp64/www/todo_app/windows"
+	"cmake.sourceDirectory": "C:/wamp64/www/todo_app/windows",
+	"[dart]": {
+		"editor.tabSize": 2,
+		"editor.insertSpaces": true,
+		"editor.detectIndentation": false,
+		"editor.suggest.insertMode": "replace",
+		"editor.defaultFormatter": "Dart-Code.dart-code",
+		"editor.inlayHints.enabled": "offUnlessPressed"
+	}
 }
