@@ -6,11 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class TaskStorageService {
   /// Adiciona uma nova tarefa via API
-  static Future<void> addTask(Task task) async {
+  static Future<Task> addTask(Task task) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
     if (token == null) throw Exception('Token não encontrado');
-    await ApiService.addTask(task, token);
+    return await ApiService.addTask(task, token);
   }
 
   /// Carrega as tarefas do usuário via API
@@ -19,6 +19,14 @@ class TaskStorageService {
     final token = prefs.getString('token');
     if (token == null) throw Exception('Token não encontrado');
     return await ApiService.getTasks(token);
+  }
+
+  /// Completa uma tarefa via API
+  static Future<void> completeTask(String taskId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) throw Exception('Token não encontrado');
+    await ApiService.completeTask(taskId, token);
   }
 
   /// Editar uma tarefa via API
@@ -51,6 +59,14 @@ class TaskStorageService {
     final token = prefs.getString('token');
     if (token == null) throw Exception('Token não encontrado');
     await ApiService.restoreTask(taskId, token);
+  }
+
+  /// Deleta uma tarefa permanentemente via API
+  static Future<void> deleteTaskPermanently(String taskId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString('token');
+    if (token == null) throw Exception('Token não encontrado');
+    await ApiService.deleteTaskPermanently(taskId, token);
   }
 
   /// Essa função de salvar todas as tarefas localmente pode ser removida

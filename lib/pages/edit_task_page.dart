@@ -1,13 +1,17 @@
+// ignore_for_file: avoid_print
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
+import 'package:flutter_quill/quill_delta.dart';
 import 'package:loading_animation_widget/loading_animation_widget.dart';
 import 'package:todo_app/models/task.dart';
 import 'package:todo_app/services/task_storage_service.dart';
 
 class EditTaskPage extends StatefulWidget {
-  const EditTaskPage({super.key,
+  const EditTaskPage({
+    super.key,
     required this.task,
   });
 
@@ -15,7 +19,6 @@ class EditTaskPage extends StatefulWidget {
   @override
   State<EditTaskPage> createState() => _EditTaskPageState(task: task);
 }
-
 
 class _EditTaskPageState extends State<EditTaskPage> {
   _EditTaskPageState({required this.task});
@@ -27,25 +30,44 @@ class _EditTaskPageState extends State<EditTaskPage> {
   DateTime? _dueDate;
   bool isLoading = false;
 
-
   @override
   void initState() {
     super.initState();
     _titleController.text = task.title;
     _dueDate = task.dueDate;
     print('Original date: $_dueDate');
-    if(_dueDate != null) {
-      _dateController.text =
-          "${_dueDate!.day.toString().padLeft(2, '0')}/"
+    if (_dueDate != null) {
+      _dateController.text = "${_dueDate!.day.toString().padLeft(2, '0')}/"
           "${_dueDate!.month.toString().padLeft(2, '0')}/"
           "${_dueDate!.year} às "
           "${_dueDate!.hour.toString().padLeft(2, '0')}:"
           "${_dueDate!.minute.toString().padLeft(2, '0')}";
       print('Formatted date: ${_dateController.text}');
     }
-    _controller.document = Document.fromJson(jsonDecode(task.description));
- 
+    _controller.document =  parseDescription(task.description);
+
     _dueDate = task.dueDate;
+  }
+
+  Document parseDescription(String text) {
+    print('Parsing description: $text');
+    try {
+      final json = jsonDecode(text);
+      return Document.fromJson(json);
+    } catch (e) {
+      print('Erro ao analisar a descrição: $e');
+      // Se falhar, tentamos tratar como texto simples
+      try {
+        var doc = Delta()..insert(text + '\n');
+        return Document.fromDelta(doc);
+      } catch (e) {
+        print('Erro ao criar documento de texto simples: $e');
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Erro ao carregar a descrição')),
+        );
+      }
+      return Document();
+    }
   }
 
   void _saveTask() async {
@@ -95,34 +117,34 @@ class _EditTaskPageState extends State<EditTaskPage> {
       );
       return;
     }
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Tarefa editada com sucesso')),
     );
 
     Navigator.pop(context, task);
-
-
   }
-  
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: !isLoading ? AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Edit Task'),
-        centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.save),
-            tooltip: 'Save',
-            onPressed: _saveTask,
-          ),
-        ],
-      ) : null,
+      appBar: !isLoading
+          ? AppBar(
+              leading: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                onPressed: () => Navigator.pop(context),
+              ),
+              title: const Text('Edit Task'),
+              centerTitle: true,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.save),
+                  tooltip: 'Save',
+                  onPressed: _saveTask,
+                ),
+              ],
+            )
+          : null,
       body: Stack(
         children: [
           Padding(
@@ -151,13 +173,13 @@ class _EditTaskPageState extends State<EditTaskPage> {
                       firstDate: DateTime(2000),
                       lastDate: DateTime(2101),
                     );
-          
+
                     if (pickedDate != null) {
                       final TimeOfDay? pickedTime = await showTimePicker(
                         context: context,
                         initialTime: TimeOfDay.now(),
                       );
-          
+
                       if (pickedTime != null) {
                         final fullDateTime = DateTime(
                           pickedDate.year,
@@ -166,15 +188,16 @@ class _EditTaskPageState extends State<EditTaskPage> {
                           pickedTime.hour,
                           pickedTime.minute,
                         );
-          
+
                         if (fullDateTime.isBefore(DateTime.now())) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                                content: Text('A data e hora devem ser futuras.')),
+                                content:
+                                    Text('A data e hora devem ser futuras.')),
                           );
                           return;
                         }
-          
+
                         setState(() {
                           _dueDate = fullDateTime;
                           _dateController.text =
@@ -188,17 +211,11 @@ class _EditTaskPageState extends State<EditTaskPage> {
                     }
                   },
                 ),
-                QuillToolbar.simple(
-                  configurations: QuillSimpleToolbarConfigurations(
-                    controller: _controller,
-                    sharedConfigurations: const QuillSharedConfigurations(
-                      locale: Locale('pt', 'BR'),
-                    ),
+                QuillSimpleToolbar(
+                  controller: _controller,
+                  config: const QuillSimpleToolbarConfig(
                     showUndo: false,
                     showRedo: false,
-                    showSearchButton: false,
-                    showClipboardCopy: false,
-                    showClipboardCut: false,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -209,29 +226,26 @@ class _EditTaskPageState extends State<EditTaskPage> {
                       border: Border.all(color: Colors.grey.shade300),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: QuillEditor.basic(
-                      configurations: QuillEditorConfigurations(
-                        controller: _controller,
-                        sharedConfigurations: const QuillSharedConfigurations(
-                          locale: Locale('pt', 'BR'),
-                        ),
-                      ),
+                    child: QuillEditor(
+                      focusNode: FocusNode(),
+                      scrollController: ScrollController(),
+                      controller: _controller,
                     ),
                   ),
-                )
+                ),
               ],
             ),
           ),
           if (isLoading)
-          Container(
-            color: Colors.white.withOpacity(0.9),
-            child: Center(
-              child: LoadingAnimationWidget.newtonCradle(
-                color: Theme.of(context).colorScheme.primary,
-                size: 50,
+            Container(
+              color: Colors.white.withValues(alpha: 0.8),
+              child: Center(
+                child: LoadingAnimationWidget.newtonCradle(
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 50,
+                ),
               ),
-            ),
-          )
+            )
         ],
       ),
     );

@@ -207,17 +207,17 @@ class _MyHomePageState extends State<MyHomePage> {
           child: TaskCard(
             task: task,
             isArchivedView: showArchived,
+            isDeletedView: showDeleted,
             onToggleDone: () async {
               task.isDone = !task.isDone;
+              setState(() {
+                task.isDone = task.isDone;
+              });
               if (task.id != null) {
                 task.isDone
                     ? await ApiService.completeTask(task.id!, token)
                     : await ApiService.uncompleteTask(task.id!, token);
               }
-
-              setState(() {
-                task.isDone = task.isDone;
-              });
             },
             onAction: (value) async {
               if (value == 'archive') {
@@ -241,6 +241,9 @@ class _MyHomePageState extends State<MyHomePage> {
                   isLoading = true;
                 });
                 tasks.remove(task);
+                setState(() {
+                  task.isDeleted = true;
+                });
                 await ApiService.deleteTask(task.id!, token);
                 await _loadDeletedTasksFromApi();
                 setState(() {
@@ -269,6 +272,15 @@ class _MyHomePageState extends State<MyHomePage> {
                   isLoading = true;
                 });
                 await _restoreDeletedTask(task);
+                setState(() {
+                  isLoading = false;
+                });
+              } else if (value == 'delete_permanently') {
+                setState(() {
+                  isLoading = true;
+                });
+                await TaskStorageService.deleteTaskPermanently(task.id!);
+                await _loadDeletedTasksFromApi();
                 setState(() {
                   isLoading = false;
                 });

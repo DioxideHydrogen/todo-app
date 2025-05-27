@@ -70,7 +70,7 @@ class ApiService {
   }
 
   /// Cria uma nova tarefa
-  static Future<void> addTask(Task task, String token) async {
+  static Future<Task> addTask(Task task, String token) async {
     print('Criando tarefa: ${task.title} - ${task.description}');
     final response = await http.post(
       Uri.parse('$_baseUrl/tasks'),
@@ -84,6 +84,10 @@ class ApiService {
     if (response.statusCode != 201) {
       throw Exception('Erro ao criar tarefa');
     }
+
+    print('Tarefa criada com sucesso: ${task.title}');
+    final data = jsonDecode(response.body);
+    return Task.fromJsonApi(data);
   }
 
   /// Edita uma tarefa existente
@@ -180,6 +184,22 @@ class ApiService {
 
     if (response.statusCode != 200 && response.statusCode != 204) {
       throw Exception('Erro ao excluir tarefa');
+    }
+  }
+
+  /// Deleta uma tarefa permanentemente
+  static Future<void> deleteTaskPermanently(String taskId, String token) async {
+    print('Deletando permanentemente tarefa: $taskId');
+    final response = await http.delete(
+      Uri.parse('$_baseUrl/tasks/$taskId/permanently'),
+      headers: {
+        'Authorization': 'Bearer $token',
+        'Content-Type': 'application/json',
+      },
+    );
+
+    if (response.statusCode != 200 && response.statusCode != 204) {
+      throw Exception('Erro ao deletar tarefa permanentemente');
     }
   }
 

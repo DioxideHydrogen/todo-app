@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../models/task.dart';
-import 'package:flutter_quill/flutter_quill.dart' as quill;
+import 'package:flutter_quill/flutter_quill.dart';
 import 'dart:convert';
 
 class TaskCard extends StatelessWidget {
   final Task task;
   final bool isArchivedView;
+  final bool isDeletedView;
   final VoidCallback onToggleDone;
   final void Function(String action) onAction;
 
@@ -15,6 +16,7 @@ class TaskCard extends StatelessWidget {
     required this.isArchivedView,
     required this.onToggleDone,
     required this.onAction,
+    required this.isDeletedView,
   });
 
   @override
@@ -28,7 +30,7 @@ class TaskCard extends StatelessWidget {
         child: ListTile(
           leading: Checkbox(
             value: task.isDone,
-            onChanged: isArchivedView ? null : (_) => onToggleDone(),
+            onChanged: isDeletedView ? null : (_) => onToggleDone(),
           ),
           title: Text(
             task.title,
@@ -51,29 +53,23 @@ class TaskCard extends StatelessWidget {
                 tooltip: 'View description',
                 onPressed: () {
                   try {
-                    final doc = quill.Document.fromJson(jsonDecode(task.description));
+                    final doc = Document.fromJson(jsonDecode(task.description));
                     showDialog(
                       context: context,
                       builder: (_) => AlertDialog(
                         title: Text(task.title),
                         content: SizedBox(
                           height: 300,
-                          child: quill.QuillEditor.basic(
-                            configurations: quill.QuillEditorConfigurations(
-                              controller: quill.QuillController(
-                                document: doc,
-                                selection: const TextSelection.collapsed(offset: 0),
-                              ),
-                              scrollable: true,
-                              padding: const EdgeInsets.all(8),
-                              enableInteractiveSelection: false,
-                              showCursor: false,
-                              enableSelectionToolbar: false,
-                              checkBoxReadOnly: true,
+                          child: QuillEditor(
+                            controller: QuillController(
+                              document: doc,
+                              selection: const TextSelection.collapsed(offset: 0),
+                              readOnly: true
+                            ),
+                            focusNode: FocusNode(),
+                            scrollController: ScrollController(),
                             ),
                           ),
-
-                        ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
@@ -106,6 +102,8 @@ class TaskCard extends StatelessWidget {
                 itemBuilder: (context) => [
                   if (task.isDeleted)
                     const PopupMenuItem(value: 'restore', child: Text('Restore')),
+                  if (task.isDeleted)
+                    const PopupMenuItem(value: 'delete_permanently', child: Text('Delete Permanently')),
                   if (!task.isDeleted)
                     const PopupMenuItem(value: 'edit', child: Text('Edit')),
                   if (!isArchivedView && !task.isDeleted)

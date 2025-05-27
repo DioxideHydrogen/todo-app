@@ -1,4 +1,6 @@
 
+import 'dart:ffi';
+
 import 'package:awesome_notifications/awesome_notifications.dart';
 import 'package:flutter/material.dart';
 
@@ -6,7 +8,7 @@ class NotificationService {
   /// Inicializa o plugin e canal de notificações
   static Future<void> init() async {
     await AwesomeNotifications().initialize(
-      null,
+      'resource://mipmap/ic_notification',
       [
         NotificationChannel(
           channelKey: 'task_channel',
@@ -16,6 +18,7 @@ class NotificationService {
           ledColor: const Color(0xFFFFFFFF),
           importance: NotificationImportance.High,
           channelShowBadge: true,
+          icon: 'resource://mipmap/ic_notification',
         )
       ],
       debug: true,
@@ -52,9 +55,12 @@ class NotificationService {
     }
   }
 
+  static int generateNotificationId(String uniqueId, int offset) {
+    return uniqueId.hashCode + offset;
+  }
   /// Agenda 3 notificações antes da data da tarefa
   static Future<void> scheduleTaskNotifications({
-    required int idBase,
+    required String idBase,
     required String title,
     required DateTime date,
   }) async {
@@ -70,31 +76,50 @@ class NotificationService {
       'Faltam 10 minutos para sua tarefa "$title"',
     ];
 
-    final timeZone =
-        await AwesomeNotifications().getLocalTimeZoneIdentifier();
+    const timeZone = 'America/Sao_Paulo'; // Ajuste conforme necessário
 
     for (int i = 0; i < times.length; i++) {
       if (times[i].isAfter(DateTime.now())) {
-        await AwesomeNotifications().createNotification(
-          content: NotificationContent(
-            id: idBase + i,
-            channelKey: 'task_channel',
-            title: 'Lembrete de tarefa',
-            body: messages[i],
-            notificationLayout: NotificationLayout.Default,
-          ),
-          schedule: NotificationCalendar(
-            year: times[i].year,
-            month: times[i].month,
-            day: times[i].day,
-            hour: times[i].hour,
-            minute: times[i].minute,
-            second: 0,
-            millisecond: 0,
-            preciseAlarm: true,
-            timeZone: timeZone,
-          ),
-        );
+        final notificationId = generateNotificationId(idBase, i);
+        print('Scheduling notification ${notificationId} for ${times[i]}');
+        try {
+          await AwesomeNotifications().createNotification(
+            content: NotificationContent(
+              id: notificationId,
+              channelKey: 'task_channel',
+              title: 'Lembrete de tarefa',
+              body: messages[i],
+              notificationLayout: NotificationLayout.Default,
+              category: NotificationCategory.Reminder,
+              icon: 'resource://mipmap/ic_notification',
+              payload: {
+                'task_id': idBase.toString(),
+                'task_title': title,
+              },
+            ),
+            schedule: NotificationCalendar(
+              year: times[i].year,
+              month: times[i].month,
+              day: times[i].day,
+              hour: times[i].hour,
+              minute: times[i].minute,
+              second: 0,
+              millisecond: 0,
+              preciseAlarm: true,
+              timeZone: timeZone,
+            ),
+            actionButtons: [
+              NotificationActionButton(
+                key: 'MARK_DONE',
+                label: 'Marcar como feita',
+                actionType: ActionType.SilentBackgroundAction,
+              ),
+            ],
+          );
+          print('Notificação ${notificationId} agendada para ${times[i]}');
+        } catch (e) {
+          print('Erro ao agendar notificação ${notificationId}: $e');
+        }
       }
     }
   }

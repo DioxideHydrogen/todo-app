@@ -18,6 +18,9 @@ class _AddTaskPageState extends State<AddTaskPage> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   final QuillController _controller = QuillController.basic();
+   final FocusNode _editorFocusNode = FocusNode();
+  final ScrollController _editorScrollController = ScrollController();
+
   DateTime? _dueDate;
   bool isLoading = false;
 
@@ -41,7 +44,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       return;
     }
 
-    final task = Task(
+    var task = Task(
       title: title,
       description: description,
       isDone: false,
@@ -53,7 +56,7 @@ class _AddTaskPageState extends State<AddTaskPage> {
       setState(() {
         isLoading = true;
       });
-      await TaskStorageService.addTask(task);
+      task = await TaskStorageService.addTask(task);
       setState(() {
         isLoading = false;
       });
@@ -70,11 +73,12 @@ class _AddTaskPageState extends State<AddTaskPage> {
     if (_dueDate != null) {
       try {
         await NotificationService.scheduleTaskNotifications(
-          idBase: DateTime.now().millisecondsSinceEpoch ~/ 1000,
+          idBase: task.uniqueId!,
           title: title,
           date: _dueDate!,
         );
       } catch (e) {
+        print('Erro ao agendar notificação: $e');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: const Text(
@@ -186,17 +190,13 @@ class _AddTaskPageState extends State<AddTaskPage> {
                       }
                     },
                   ),
-                  QuillToolbar.simple(
-                    configurations: QuillSimpleToolbarConfigurations(
-                      controller: _controller,
-                      sharedConfigurations: const QuillSharedConfigurations(
-                        locale: Locale('pt', 'BR'),
-                      ),
+                  QuillSimpleToolbar(
+                    controller: _controller,
+                    config: const QuillSimpleToolbarConfig(
+                      showBoldButton: true,
+                      showItalicButton: true,
                       showUndo: false,
                       showRedo: false,
-                      showSearchButton: false,
-                      showClipboardCopy: false,
-                      showClipboardCut: false,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -207,13 +207,10 @@ class _AddTaskPageState extends State<AddTaskPage> {
                         border: Border.all(color: Colors.grey.shade300),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: QuillEditor.basic(
-                        configurations: QuillEditorConfigurations(
-                          controller: _controller,
-                          sharedConfigurations: const QuillSharedConfigurations(
-                            locale: Locale('pt', 'BR'),
-                          ),
-                        ),
+                      child: QuillEditor(
+                        controller: _controller,
+                        focusNode: _editorFocusNode,
+                        scrollController: _editorScrollController,
                       ),
                     ),
                   )
@@ -233,4 +230,5 @@ class _AddTaskPageState extends State<AddTaskPage> {
           ],
         ));
   }
+
 }

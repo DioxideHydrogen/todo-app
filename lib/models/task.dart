@@ -6,6 +6,7 @@ class Task {
   bool isArchived;
   DateTime? dueDate;
   bool isDeleted;
+  String? uniqueId;
 
   Task({
     this.id,
@@ -15,10 +16,13 @@ class Task {
     this.isArchived = false,
     this.dueDate,
     this.isDeleted = false,
+    this.uniqueId,
   });
 
   Map<String, dynamic> toJson() {
     return {
+      'id': id,
+      'uniqueId': uniqueId,
       'title': title,
       'description': description,
       'isDone': isDone,
@@ -48,6 +52,7 @@ class Task {
       dueDate: json['dueDate'] != null ? DateTime.tryParse(json['dueDate']) : null,
       isDeleted: json['isDeleted'] ?? false,
       id: json['_id'],
+      uniqueId: json['uniqueId'],
     );
   }
 
@@ -60,6 +65,7 @@ class Task {
       isArchived: json['archived'],
       dueDate: json['date'] != null ? DateTime.tryParse(json['date']) : null,
       isDeleted: json['deleted'] ?? false,
+      uniqueId: json['uniqueId'],
     );
   }
 
