@@ -45,3 +45,4 @@ app.*.map.json
 # Ignore the generated files in the build directory
 *.env
 .vscode/
+FlutterSharedPreferences.xml
